@@ -122,6 +122,16 @@ input[type="text"]::placeholder, textarea::placeholder { color: var(--muted); op
 .rule.ra b { color: var(--purple); } .rule.r3 b { color: var(--accent); } .rule.r1 b { color: var(--gold); }
 .note { font-size: 14px; color: var(--muted); }
 
+.levelpick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.levelcard {
+  font: inherit; text-align: left; cursor: pointer; display: grid; gap: 6px;
+  border: 1.5px solid var(--line); border-radius: 12px; padding: 16px; background: var(--bg); color: var(--ink);
+}
+.levelcard:hover { border-color: var(--accent); }
+.levelcard .levelnum { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+.levelcard .leveltitle { font-family: var(--display); font-weight: 800; font-size: 1.1rem; color: var(--purple); }
+.levelcard .leveldesc { font-size: 13px; color: var(--muted); }
+
 .summary { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; justify-content: space-between; }
 .summary .big { font-family: var(--mono); font-size: 14px; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
 .summary .big b { font-size: 22px; }
@@ -193,6 +203,7 @@ input[type="text"]::placeholder, textarea::placeholder { color: var(--muted); op
   .statgrid { grid-template-columns: 1fr 1fr; }
   .choices.cols2 { grid-template-columns: 1fr; }
   .card { padding: 16px; }
+  .levelpick { grid-template-columns: 1fr; }
 }
 </style>
 
@@ -258,7 +269,7 @@ input[type="text"]::placeholder, textarea::placeholder { color: var(--muted); op
   var app = document.getElementById('app');
 
   var S = {
-    phase: 'start', id: '', name: '', idErr: false, nameErr: false,
+    phase: 'home', id: '', name: '', idErr: false, nameErr: false,
     qi: 0, items: [], tStart: 0, qShownAt: 0,
     part1: null, typedDraft: '', part2: null, busy: false,
     last: null, syncStatus: null
@@ -344,7 +355,7 @@ input[type="text"]::placeholder, textarea::placeholder { color: var(--muted); op
 
   function sendToSheet(score, totalSec) {
     var payload = {
-      id: S.id, name: S.name, score: score, total: TOTAL,
+      level: 1, id: S.id, name: S.name, score: score, total: TOTAL,
       totalSec: Math.round(totalSec * 10) / 10,
       submittedAt: new Date().toISOString(),
       items: S.items.map(function (it) { return { correct: it.correct, timeSec: it.timeSec }; })
@@ -364,6 +375,265 @@ input[type="text"]::placeholder, textarea::placeholder { color: var(--muted); op
 
   function playAgain() { S.qi = 0; S.items = []; S.tStart = Date.now(); nextQuestion(); }
   function switchStudent() { S.id = ''; S.name = ''; S.idErr = false; S.nameErr = false; S.phase = 'start'; render(); }
+  function goHome() { S.phase = 'home'; render(); }
+
+  /* ======================================================================
+   * LEVEL 2 · Sentence Structure — clauses, subordinate clauses, sentence
+   * types and phrases. Independent round: its own ID/name entry, its own
+   * 20 questions, its own tabs in the Sheet (via level: 2 in the payload).
+   * ==================================================================== */
+  var QUESTIONS2 = [
+    { category: 'Clause Type', pre: '', target: 'Although it was raining', post: ', the match continued.',
+      options: ['Main Clause', 'Subordinate Clause'], correct: 1,
+      explain: 'This clause starts with "although" and can’t stand alone as a full sentence — that makes it a subordinate clause.' },
+    { category: 'Clause Type', pre: '', target: 'The chef prepared the meal', post: ' while the guests waited outside.',
+      options: ['Main Clause', 'Subordinate Clause'], correct: 0,
+      explain: 'This part makes complete sense on its own — "The chef prepared the meal" is the main clause.' },
+    { category: 'Clause Type', pre: '', target: 'Because she practised every day', post: ', Mei became a confident speaker.',
+      options: ['Main Clause', 'Subordinate Clause'], correct: 1,
+      explain: 'It starts with "because" and gives a reason — it depends on the rest of the sentence, so it’s subordinate.' },
+    { category: 'Clause Type', pre: '', target: 'The librarian smiled', post: ' when the children returned the books.',
+      options: ['Main Clause', 'Subordinate Clause'], correct: 0,
+      explain: '"The librarian smiled" makes complete sense alone — the main clause.' },
+    { category: 'Clause Type', pre: 'The student ', target: 'who arrived late', post: ' missed the announcement.',
+      options: ['Main Clause', 'Subordinate Clause'], correct: 1,
+      explain: 'It adds extra information about "the student" and can’t stand alone — a subordinate (relative) clause.' },
+
+    { category: 'Clause Function', pre: 'I know ', target: 'that you worked hard', post: ' on this project.',
+      options: ['Noun Clause', 'Adjective Clause', 'Adverb Clause'], correct: 0,
+      explain: 'It answers "what do I know?" and acts as the object of "know" — a noun clause.' },
+    { category: 'Clause Function', pre: 'This is the book ', target: 'that everyone is talking about', post: '.',
+      options: ['Noun Clause', 'Adjective Clause', 'Adverb Clause'], correct: 1,
+      explain: 'It describes the noun "book" — an adjective clause.' },
+    { category: 'Clause Function', pre: 'We left early ', target: 'because the storm was getting worse', post: '.',
+      options: ['Noun Clause', 'Adjective Clause', 'Adverb Clause'], correct: 2,
+      explain: 'It explains why we left, modifying the verb "left" — an adverb clause.' },
+    { category: 'Clause Function', pre: '', target: 'Whoever finishes first', post: ' will receive a prize.',
+      options: ['Noun Clause', 'Adjective Clause', 'Adverb Clause'], correct: 0,
+      explain: 'It acts as the subject of the sentence — a noun clause.' },
+    { category: 'Clause Function', pre: 'He waited at the station ', target: 'where the train usually stops', post: '.',
+      options: ['Noun Clause', 'Adjective Clause', 'Adverb Clause'], correct: 1,
+      explain: 'It describes the noun "station" — an adjective clause.' },
+
+    { category: 'Sentence Type', pre: '', target: 'The dog barked loudly.', post: '',
+      options: ['Simple', 'Compound', 'Complex', 'Compound-Complex'], correct: 0,
+      explain: 'One independent clause, nothing else — a simple sentence.' },
+    { category: 'Sentence Type', pre: '', target: 'The sun set, and the stars appeared.', post: '',
+      options: ['Simple', 'Compound', 'Complex', 'Compound-Complex'], correct: 1,
+      explain: 'Two independent clauses joined by "and" — a compound sentence.' },
+    { category: 'Sentence Type', pre: '', target: 'Because the bus was late, I missed my class.', post: '',
+      options: ['Simple', 'Compound', 'Complex', 'Compound-Complex'], correct: 2,
+      explain: 'One independent clause plus one dependent clause ("because...") — a complex sentence.' },
+    { category: 'Sentence Type', pre: '', target: 'She studied hard, and she passed the exam because she revised every topic.', post: '',
+      options: ['Simple', 'Compound', 'Complex', 'Compound-Complex'], correct: 3,
+      explain: 'Two independent clauses joined by "and", plus a dependent clause ("because...") — compound-complex.' },
+    { category: 'Sentence Type', pre: '', target: 'After the rain stopped, the children ran outside, and they played until sunset.', post: '',
+      options: ['Simple', 'Compound', 'Complex', 'Compound-Complex'], correct: 3,
+      explain: 'A dependent clause ("after...") plus two independent clauses joined by "and" — compound-complex.' },
+
+    { category: 'Phrase Type', pre: '', target: 'The tall boy with glasses', post: ' answered the question quickly.',
+      options: ['Noun Phrase', 'Verb Phrase', 'Prepositional Phrase', 'Adjective Phrase', 'Adverb Phrase'], correct: 0,
+      explain: 'Built around the noun "boy" — a noun phrase, acting as the subject.' },
+    { category: 'Phrase Type', pre: 'She ', target: 'has been studying', post: ' all afternoon.',
+      options: ['Noun Phrase', 'Verb Phrase', 'Prepositional Phrase', 'Adjective Phrase', 'Adverb Phrase'], correct: 1,
+      explain: 'Built around the main verb "studying" with helping verbs — a verb phrase.' },
+    { category: 'Phrase Type', pre: 'The cat slept ', target: 'under the old wooden table', post: '.',
+      options: ['Noun Phrase', 'Verb Phrase', 'Prepositional Phrase', 'Adjective Phrase', 'Adverb Phrase'], correct: 2,
+      explain: 'Begins with the preposition "under" — a prepositional phrase.' },
+    { category: 'Phrase Type', pre: 'It was a ', target: 'remarkably beautiful', post: ' sunset.',
+      options: ['Noun Phrase', 'Verb Phrase', 'Prepositional Phrase', 'Adjective Phrase', 'Adverb Phrase'], correct: 3,
+      explain: 'Built around the adjective "beautiful", describing "sunset" — an adjective phrase.' },
+    { category: 'Phrase Type', pre: 'He finished the race ', target: 'much faster than expected', post: '.',
+      options: ['Noun Phrase', 'Verb Phrase', 'Prepositional Phrase', 'Adjective Phrase', 'Adverb Phrase'], correct: 4,
+      explain: 'Built around the adverb "faster", describing how he finished — an adverb phrase.' }
+  ];
+  var TOTAL2 = QUESTIONS2.length;
+
+  var S2 = {
+    phase: 'start2', id: '', name: '', idErr: false, nameErr: false,
+    qi: 0, items: [], tStart: 0, qShownAt: 0, picked: null, last: null, syncStatus: null
+  };
+
+  function curQ2() { return QUESTIONS2[S2.qi]; }
+  function rankFor2(score) {
+    if (score >= 18) return 'Chief Wordsmith';
+    if (score >= 14) return 'Inspector';
+    if (score >= 9) return 'Sleuth';
+    return 'Rookie Detective';
+  }
+  function startQuiz2() {
+    var id = norm(S2.id), name = norm(S2.name);
+    S2.idErr = !id; S2.nameErr = !name;
+    if (S2.idErr || S2.nameErr) { render(); return; }
+    S2.id = S2.id.trim(); S2.name = S2.name.trim();
+    S2.qi = 0; S2.items = []; S2.tStart = Date.now();
+    nextQuestion2();
+  }
+  function nextQuestion2() {
+    S2.picked = null; S2.qShownAt = Date.now(); S.phase = 'quiz2'; render();
+  }
+  function submitAnswer2() {
+    if (S2.picked === null) return;
+    var q = curQ2(), timeSec = Math.round((Date.now() - S2.qShownAt) / 100) / 10;
+    var correct = S2.picked === q.correct;
+    S2.items.push({ qi: S2.qi, category: q.category, correct: correct, timeSec: timeSec });
+    S2.last = { correct: correct };
+    S.phase = 'feedback2'; render();
+  }
+  function advance2() {
+    S2.qi += 1;
+    if (S2.qi >= TOTAL2) finishQuiz2(); else nextQuestion2();
+  }
+  function finishQuiz2() {
+    var score = S2.items.filter(function (it) { return it.correct; }).length;
+    var totalSec = S2.items.reduce(function (a, it) { return a + it.timeSec; }, 0);
+    var fastest = S2.items.reduce(function (a, it) { return Math.min(a, it.timeSec); }, Infinity);
+    S2.result = { score: score, totalSec: Math.round(totalSec * 10) / 10,
+      avgSec: Math.round((totalSec / TOTAL2) * 10) / 10, fastest: fastest };
+    S.phase = 'done2'; S2.syncStatus = SHEET_ENDPOINT ? 'sending' : 'nosync'; render();
+    if (SHEET_ENDPOINT) sendToSheet2(score, totalSec);
+  }
+  function sendToSheet2(score, totalSec) {
+    var payload = {
+      level: 2, id: S2.id, name: S2.name, score: score, total: TOTAL2,
+      totalSec: Math.round(totalSec * 10) / 10,
+      submittedAt: new Date().toISOString(),
+      items: S2.items.map(function (it) { return { category: it.category, correct: it.correct, timeSec: it.timeSec }; })
+    };
+    try {
+      fetch(SHEET_ENDPOINT, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      }).then(function () {
+        S2.syncStatus = 'ok'; render();
+      }, function () {
+        S2.syncStatus = 'failed'; render();
+      });
+    } catch (e) { S2.syncStatus = 'failed'; render(); }
+  }
+  function playAgain2() { S2.qi = 0; S2.items = []; S2.tStart = Date.now(); nextQuestion2(); }
+  function switchStudent2() { S2.id = ''; S2.name = ''; S2.idErr = false; S2.nameErr = false; S.phase = 'start2'; render(); }
+
+  /* ======================================================================
+   * LEVEL 3 · Figurative Language — simile, metaphor, personification,
+   * hyperbole and idiom. Independent round, own ID/name entry, own 20
+   * questions, own tabs in the Sheet (via level: 3 in the payload).
+   * ==================================================================== */
+  var FIG_OPTIONS = ['Simile', 'Metaphor', 'Personification', 'Hyperbole', 'Idiom'];
+  var QUESTIONS3 = [
+    { pre: 'The wind howled ', target: 'like a wounded wolf', post: '.', correct: 0,
+      explain: 'This compares the wind to a wolf using "like" — a simile.' },
+    { pre: 'Her smile was ', target: 'as bright as the morning sun', post: '.', correct: 0,
+      explain: 'This compares her smile to the sun using "as...as" — a simile.' },
+    { pre: 'He ran ', target: 'as fast as a cheetah', post: ' across the field.', correct: 0,
+      explain: 'This compares his speed to a cheetah using "as...as" — a simile.' },
+    { pre: 'The classroom was ', target: 'as quiet as a library', post: ' during the test.', correct: 0,
+      explain: 'This compares the quiet classroom to a library using "as...as" — a simile.' },
+
+    { pre: '', target: 'Time is a thief', post: ' that steals our youth.', correct: 1,
+      explain: 'This says time IS a thief, with no "like" or "as" — a metaphor.' },
+    { pre: 'The classroom was ', target: 'a zoo', post: ' during the fire drill.', correct: 1,
+      explain: 'This says the classroom WAS a zoo, with no "like" or "as" — a metaphor.' },
+    { pre: 'Her words ', target: 'were daggers', post: ', cutting deep into his pride.', correct: 1,
+      explain: 'This says her words WERE daggers — a direct comparison with no "like/as" — a metaphor.' },
+    { pre: '', target: 'The world is a stage', post: ', and we are merely players.', correct: 1,
+      explain: 'This says the world IS a stage — a metaphor comparing life to a performance.' },
+
+    { pre: 'The old house ', target: 'groaned under the weight of the storm', post: '.', correct: 2,
+      explain: 'A house can’t really groan — giving it a human action is personification.' },
+    { pre: 'The wind ', target: 'whispered secrets', post: ' through the trees.', correct: 2,
+      explain: 'Wind can’t really whisper — giving it a human action is personification.' },
+    { pre: 'The stars ', target: 'danced across the night sky', post: '.', correct: 2,
+      explain: 'Stars can’t really dance — giving them a human action is personification.' },
+    { pre: 'The angry sea ', target: 'slapped against the rocks', post: '.', correct: 2,
+      explain: 'The sea can’t really slap — giving it a human action is personification.' },
+
+    { pre: 'I’ve told you ', target: 'a million times', post: ' to clean your room.', correct: 3,
+      explain: 'No one literally says something a million times — this exaggerates for effect, a hyperbole.' },
+    { pre: 'My school bag ', target: 'weighs a ton', post: ' today.', correct: 3,
+      explain: 'A bag can’t really weigh a ton — this is an exaggeration, a hyperbole.' },
+    { pre: 'I’m so hungry ', target: 'I could eat a horse', post: '.', correct: 3,
+      explain: 'No one can really eat a horse — this exaggerates how hungry she is, a hyperbole.' },
+    { pre: 'She cried ', target: 'a river of tears', post: ' when her pet went missing.', correct: 3,
+      explain: 'Tears can’t form a literal river — this exaggerates her crying, a hyperbole.' },
+
+    { pre: 'It’s ', target: 'raining cats and dogs', post: ' outside, so bring an umbrella.', correct: 4,
+      explain: '"Raining cats and dogs" is a fixed expression meaning heavy rain — an idiom.' },
+    { pre: 'Mei had to ', target: 'bite the bullet', post: ' and apologise to her friend.', correct: 4,
+      explain: '"Bite the bullet" is a fixed expression meaning to face something difficult — an idiom.' },
+    { pre: 'Once the exam started, Daniel was ', target: 'on cloud nine', post: ' after finishing early.', correct: 4,
+      explain: '"On cloud nine" is a fixed expression meaning extremely happy — an idiom.' },
+    { pre: 'Don’t ', target: 'let the cat out of the bag', post: ' before the surprise party.', correct: 4,
+      explain: '"Let the cat out of the bag" is a fixed expression meaning to reveal a secret — an idiom.' }
+  ];
+  var TOTAL3 = QUESTIONS3.length;
+
+  var S3 = {
+    phase: 'start3', id: '', name: '', idErr: false, nameErr: false,
+    qi: 0, items: [], tStart: 0, qShownAt: 0, picked: null, last: null, syncStatus: null
+  };
+
+  function curQ3() { return QUESTIONS3[S3.qi]; }
+  function rankFor3(score) {
+    if (score >= 18) return 'Chief Wordsmith';
+    if (score >= 14) return 'Inspector';
+    if (score >= 9) return 'Sleuth';
+    return 'Rookie Detective';
+  }
+  function startQuiz3() {
+    var id = norm(S3.id), name = norm(S3.name);
+    S3.idErr = !id; S3.nameErr = !name;
+    if (S3.idErr || S3.nameErr) { render(); return; }
+    S3.id = S3.id.trim(); S3.name = S3.name.trim();
+    S3.qi = 0; S3.items = []; S3.tStart = Date.now();
+    nextQuestion3();
+  }
+  function nextQuestion3() {
+    S3.picked = null; S3.qShownAt = Date.now(); S.phase = 'quiz3'; render();
+  }
+  function submitAnswer3() {
+    if (S3.picked === null) return;
+    var q = curQ3(), timeSec = Math.round((Date.now() - S3.qShownAt) / 100) / 10;
+    var correct = S3.picked === q.correct;
+    S3.items.push({ qi: S3.qi, correct: correct, timeSec: timeSec });
+    S3.last = { correct: correct };
+    S.phase = 'feedback3'; render();
+  }
+  function advance3() {
+    S3.qi += 1;
+    if (S3.qi >= TOTAL3) finishQuiz3(); else nextQuestion3();
+  }
+  function finishQuiz3() {
+    var score = S3.items.filter(function (it) { return it.correct; }).length;
+    var totalSec = S3.items.reduce(function (a, it) { return a + it.timeSec; }, 0);
+    var fastest = S3.items.reduce(function (a, it) { return Math.min(a, it.timeSec); }, Infinity);
+    S3.result = { score: score, totalSec: Math.round(totalSec * 10) / 10,
+      avgSec: Math.round((totalSec / TOTAL3) * 10) / 10, fastest: fastest };
+    S.phase = 'done3'; S3.syncStatus = SHEET_ENDPOINT ? 'sending' : 'nosync'; render();
+    if (SHEET_ENDPOINT) sendToSheet3(score, totalSec);
+  }
+  function sendToSheet3(score, totalSec) {
+    var payload = {
+      level: 3, id: S3.id, name: S3.name, score: score, total: TOTAL3,
+      totalSec: Math.round(totalSec * 10) / 10,
+      submittedAt: new Date().toISOString(),
+      items: S3.items.map(function (it) { return { correct: it.correct, timeSec: it.timeSec }; })
+    };
+    try {
+      fetch(SHEET_ENDPOINT, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      }).then(function () {
+        S3.syncStatus = 'ok'; render();
+      }, function () {
+        S3.syncStatus = 'failed'; render();
+      });
+    } catch (e) { S3.syncStatus = 'failed'; render(); }
+  }
+  function playAgain3() { S3.qi = 0; S3.items = []; S3.tStart = Date.now(); nextQuestion3(); }
+  function switchStudent3() { S3.id = ''; S3.name = ''; S3.idErr = false; S3.nameErr = false; S.phase = 'start3'; render(); }
 
   /* ---------- shared chrome ---------- */
   function masthead() {
@@ -417,7 +687,9 @@ input[type="text"]::placeholder, textarea::placeholder { color: var(--muted); op
             onkeydown: function (e) { if (e.key === 'Enter') startQuiz(); },
             oninput: function (e) { S.name = e.target.value; } }),
           S.nameErr ? h('div', { class: 'notice miss' }, 'Please type your name.') : null),
-        h('button', { class: 'btn', type: 'button', onclick: startQuiz }, 'Start Stage 1')),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', type: 'button', onclick: startQuiz }, 'Start Stage 1'),
+          h('button', { class: 'btn ghost', type: 'button', onclick: goHome }, 'Back to menu'))),
       cskFooter()
     ];
   }
@@ -512,18 +784,276 @@ input[type="text"]::placeholder, textarea::placeholder { color: var(--muted); op
         syncLine(),
         h('div', { class: 'row' },
           h('button', { class: 'btn', type: 'button', onclick: playAgain }, 'Play again'),
-          h('button', { class: 'btn ghost', type: 'button', onclick: switchStudent }, 'Different student'))),
+          h('button', { class: 'btn ghost', type: 'button', onclick: switchStudent }, 'Different student'),
+          h('button', { class: 'btn ghost', type: 'button', onclick: goHome }, 'Choose a level'))),
+      cskFooter()
+    ];
+  }
+
+  /* ---------- home / level picker ---------- */
+  function viewHome() {
+    return [
+      masthead(),
+      h('p', { class: 'lede' }, 'Choose a level to begin. Each level is its own round — enter your ID and name again if you switch.'),
+      h('section', { class: 'card' },
+        h('div', { class: 'levelpick' },
+          h('button', { class: 'levelcard', type: 'button', onclick: function () { S.phase = 'start'; render(); } },
+            h('span', { class: 'levelnum' }, 'Stage 1'),
+            h('span', { class: 'leveltitle' }, 'Grammar Patrol'),
+            h('span', { class: 'leveldesc' }, 'Nouns, verbs & adjectives — 15 questions, built from words CSK students often misspell.')),
+          h('button', { class: 'levelcard', type: 'button', onclick: function () { S.phase = 'start2'; render(); } },
+            h('span', { class: 'levelnum' }, 'Level 2'),
+            h('span', { class: 'leveltitle' }, 'Sentence Structure'),
+            h('span', { class: 'leveldesc' }, 'Clauses, subordinate clauses, sentence types & phrases — 20 questions.')),
+          h('button', { class: 'levelcard', type: 'button', onclick: function () { S.phase = 'start3'; render(); } },
+            h('span', { class: 'levelnum' }, 'Level 3'),
+            h('span', { class: 'leveltitle' }, 'Figurative Language'),
+            h('span', { class: 'leveldesc' }, 'Simile, metaphor, personification, hyperbole & idiom — 20 questions.')))),
+      cskFooter()
+    ];
+  }
+
+  /* ---------- Level 2 views ---------- */
+  function sentenceClue2(q) {
+    return h('p', { class: 'clue' }, q.pre, h('span', { class: 'wordfocus' }, q.target), q.post);
+  }
+  function pips2() {
+    var out = [];
+    for (var i = 0; i < TOTAL2; i++) {
+      var it = S2.items[i], cls = 'pip';
+      if (it) cls += it.correct ? ' p3' : ' p0';
+      else if (i === S2.items.length && S.phase === 'quiz2') cls += ' now';
+      out.push(h('span', { class: cls }, String(i + 1)));
+    }
+    return h('div', { class: 'pips' }, out);
+  }
+  function scorebar2() {
+    var right = S2.items.filter(function (it) { return it.correct; }).length;
+    return h('div', { class: 'bar' }, pips2(),
+      h('div', { class: 'score' }, h('b', null, right), ' / ' + TOTAL2));
+  }
+
+  function viewStart2() {
+    return [
+      masthead(),
+      h('p', { class: 'lede' }, 'Level 2 · Sentence Structure — 20 questions on clauses, subordinate clauses, sentence types and phrases.'),
+      h('section', { class: 'card' },
+        h('div', { class: 'rules' },
+          h('div', { class: 'rule ra' }, h('b', null, '20'), h('span', null, 'questions this level')),
+          h('div', { class: 'rule r1' }, h('b', null, '4'), h('span', null, 'skills: clauses, sentence types, phrases')),
+          h('div', { class: 'rule r3' }, h('b', null, '⏱'), h('span', null, 'speed is tracked per question'))),
+        h('p', { class: 'note' }, 'Enter the ID your teacher gave you and your name, then start. One attempt per question — read carefully.'),
+        h('div', { class: 'field' },
+          h('label', null, 'Your ID'),
+          h('input', { type: 'text', id: 'idinput2', maxlength: '20', placeholder: 'e.g. CSK-07', value: S2.id, autocomplete: 'off',
+            oninput: function (e) { S2.id = e.target.value; } }),
+          S2.idErr ? h('div', { class: 'notice miss' }, 'Please type the ID your teacher gave you.') : null),
+        h('div', { class: 'field' },
+          h('label', null, 'Your name'),
+          h('input', { type: 'text', id: 'nameinput2', maxlength: '40', placeholder: 'First and last name', value: S2.name, autocomplete: 'off',
+            onkeydown: function (e) { if (e.key === 'Enter') startQuiz2(); },
+            oninput: function (e) { S2.name = e.target.value; } }),
+          S2.nameErr ? h('div', { class: 'notice miss' }, 'Please type your name.') : null),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', type: 'button', onclick: startQuiz2 }, 'Start Level 2'),
+          h('button', { class: 'btn ghost', type: 'button', onclick: goHome }, 'Back to menu'))),
+      cskFooter()
+    ];
+  }
+
+  function viewQuiz2() {
+    var q = curQ2();
+    return [
+      masthead(), scorebar2(),
+      h('section', { class: 'card case' },
+        h('span', { class: 'tab' }, 'QUESTION ' + (S2.qi + 1) + ' OF ' + TOTAL2 + ' · ' + q.category.toUpperCase()),
+        sentenceClue2(q),
+        h('div', { class: 'part' },
+          h('div', { class: 'partlabel' }, 'What is the underlined part?'),
+          h('div', { class: 'choices cols2' }, q.options.map(function (opt, i) {
+            return h('button', { class: 'choice' + (S2.picked === i ? ' picked' : ''), type: 'button',
+              onclick: function () { S2.picked = i; render(); } }, opt);
+          }))),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', type: 'button', disabled: S2.picked === null, onclick: submitAnswer2 }, 'Submit answer')))
+    ];
+  }
+
+  function viewFeedback2() {
+    var q = curQ2(), L = S2.last, last = S2.qi + 1 >= TOTAL2;
+    var cls = L.correct ? 'p3' : 'p0';
+    var stamp = L.correct ? 'Case cracked' : 'Not quite';
+    var ansLine = !L.correct ? h('p', { class: 'answerline' }, 'Correct answer: ' + q.options[q.correct]) : null;
+    return [
+      masthead(), scorebar2(),
+      h('section', { class: 'card case' },
+        h('span', { class: 'tab' }, 'QUESTION ' + (S2.qi + 1) + ' OF ' + TOTAL2 + ' · ' + q.category.toUpperCase()),
+        sentenceClue2(q),
+        h('div', { class: 'verdict' },
+          h('span', { class: 'stamp ' + cls }, stamp),
+          ansLine,
+          h('div', { class: 'explainbox' }, q.explain)),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', type: 'button', id: 'nextbtn2', onclick: advance2 }, last ? 'See my results' : 'Next question')))
+    ];
+  }
+
+  function syncLine2() {
+    if (S2.syncStatus === 'sending') return h('div', { class: 'syncline' }, 'Saving your results…');
+    if (S2.syncStatus === 'ok') return h('div', { class: 'syncline ok' }, 'Saved to your teacher’s tracker.');
+    if (S2.syncStatus === 'failed') return h('div', { class: 'syncline failed' }, 'Could not reach the tracker — show this screen to your teacher.');
+    return h('div', { class: 'syncline' }, 'Tracker not connected yet — show this screen to your teacher.');
+  }
+
+  function viewDone2() {
+    var R = S2.result;
+    return [
+      masthead(),
+      h('section', { class: 'card final' },
+        h('span', { class: 'stamp p3' }, 'Level 2 complete'),
+        h('div', { class: 'rank' }, R.score + ' of ' + TOTAL2 + ' correct'),
+        h('p', { class: 'bigscore' }, S2.name.toUpperCase() + ' · ' + S2.id.toUpperCase()),
+        h('p', { class: 'rankline' }, rankFor2(R.score)),
+        h('div', { class: 'statgrid' },
+          h('div', { class: 'stat' }, h('b', null, R.totalSec + 's'), h('span', null, 'total time')),
+          h('div', { class: 'stat' }, h('b', null, R.avgSec + 's'), h('span', null, 'avg / question')),
+          h('div', { class: 'stat' }, h('b', null, R.fastest + 's'), h('span', null, 'fastest answer'))),
+        syncLine2(),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', type: 'button', onclick: playAgain2 }, 'Play again'),
+          h('button', { class: 'btn ghost', type: 'button', onclick: switchStudent2 }, 'Different student'),
+          h('button', { class: 'btn ghost', type: 'button', onclick: goHome }, 'Choose a level'))),
+      cskFooter()
+    ];
+  }
+
+  /* ---------- Level 3 views ---------- */
+  function pips3() {
+    var out = [];
+    for (var i = 0; i < TOTAL3; i++) {
+      var it = S3.items[i], cls = 'pip';
+      if (it) cls += it.correct ? ' p3' : ' p0';
+      else if (i === S3.items.length && S.phase === 'quiz3') cls += ' now';
+      out.push(h('span', { class: cls }, String(i + 1)));
+    }
+    return h('div', { class: 'pips' }, out);
+  }
+  function scorebar3() {
+    var right = S3.items.filter(function (it) { return it.correct; }).length;
+    return h('div', { class: 'bar' }, pips3(),
+      h('div', { class: 'score' }, h('b', null, right), ' / ' + TOTAL3));
+  }
+
+  function viewStart3() {
+    return [
+      masthead(),
+      h('p', { class: 'lede' }, 'Level 3 · Figurative Language — 20 questions on simile, metaphor, personification, hyperbole and idiom.'),
+      h('section', { class: 'card' },
+        h('div', { class: 'rules' },
+          h('div', { class: 'rule ra' }, h('b', null, '20'), h('span', null, 'questions this level')),
+          h('div', { class: 'rule r1' }, h('b', null, '5'), h('span', null, 'devices: simile, metaphor, personification, hyperbole, idiom')),
+          h('div', { class: 'rule r3' }, h('b', null, '⏱'), h('span', null, 'speed is tracked per question'))),
+        h('p', { class: 'note' }, 'Enter the ID your teacher gave you and your name, then start. One attempt per question — read carefully.'),
+        h('div', { class: 'field' },
+          h('label', null, 'Your ID'),
+          h('input', { type: 'text', id: 'idinput3', maxlength: '20', placeholder: 'e.g. CSK-07', value: S3.id, autocomplete: 'off',
+            oninput: function (e) { S3.id = e.target.value; } }),
+          S3.idErr ? h('div', { class: 'notice miss' }, 'Please type the ID your teacher gave you.') : null),
+        h('div', { class: 'field' },
+          h('label', null, 'Your name'),
+          h('input', { type: 'text', id: 'nameinput3', maxlength: '40', placeholder: 'First and last name', value: S3.name, autocomplete: 'off',
+            onkeydown: function (e) { if (e.key === 'Enter') startQuiz3(); },
+            oninput: function (e) { S3.name = e.target.value; } }),
+          S3.nameErr ? h('div', { class: 'notice miss' }, 'Please type your name.') : null),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', type: 'button', onclick: startQuiz3 }, 'Start Level 3'),
+          h('button', { class: 'btn ghost', type: 'button', onclick: goHome }, 'Back to menu'))),
+      cskFooter()
+    ];
+  }
+
+  function viewQuiz3() {
+    var q = curQ3();
+    return [
+      masthead(), scorebar3(),
+      h('section', { class: 'card case' },
+        h('span', { class: 'tab' }, 'QUESTION ' + (S3.qi + 1) + ' OF ' + TOTAL3),
+        sentenceClue2(q),
+        h('div', { class: 'part' },
+          h('div', { class: 'partlabel' }, 'Which figure of speech is this?'),
+          h('div', { class: 'choices cols2' }, FIG_OPTIONS.map(function (opt, i) {
+            return h('button', { class: 'choice' + (S3.picked === i ? ' picked' : ''), type: 'button',
+              onclick: function () { S3.picked = i; render(); } }, opt);
+          }))),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', type: 'button', disabled: S3.picked === null, onclick: submitAnswer3 }, 'Submit answer')))
+    ];
+  }
+
+  function viewFeedback3() {
+    var q = curQ3(), L = S3.last, last = S3.qi + 1 >= TOTAL3;
+    var cls = L.correct ? 'p3' : 'p0';
+    var stamp = L.correct ? 'Case cracked' : 'Not quite';
+    var ansLine = !L.correct ? h('p', { class: 'answerline' }, 'Correct answer: ' + FIG_OPTIONS[q.correct]) : null;
+    return [
+      masthead(), scorebar3(),
+      h('section', { class: 'card case' },
+        h('span', { class: 'tab' }, 'QUESTION ' + (S3.qi + 1) + ' OF ' + TOTAL3),
+        sentenceClue2(q),
+        h('div', { class: 'verdict' },
+          h('span', { class: 'stamp ' + cls }, stamp),
+          ansLine,
+          h('div', { class: 'explainbox' }, q.explain)),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', type: 'button', id: 'nextbtn3', onclick: advance3 }, last ? 'See my results' : 'Next question')))
+    ];
+  }
+
+  function syncLine3() {
+    if (S3.syncStatus === 'sending') return h('div', { class: 'syncline' }, 'Saving your results…');
+    if (S3.syncStatus === 'ok') return h('div', { class: 'syncline ok' }, 'Saved to your teacher’s tracker.');
+    if (S3.syncStatus === 'failed') return h('div', { class: 'syncline failed' }, 'Could not reach the tracker — show this screen to your teacher.');
+    return h('div', { class: 'syncline' }, 'Tracker not connected yet — show this screen to your teacher.');
+  }
+
+  function viewDone3() {
+    var R = S3.result;
+    return [
+      masthead(),
+      h('section', { class: 'card final' },
+        h('span', { class: 'stamp p3' }, 'Level 3 complete'),
+        h('div', { class: 'rank' }, R.score + ' of ' + TOTAL3 + ' correct'),
+        h('p', { class: 'bigscore' }, S3.name.toUpperCase() + ' · ' + S3.id.toUpperCase()),
+        h('p', { class: 'rankline' }, rankFor3(R.score)),
+        h('div', { class: 'statgrid' },
+          h('div', { class: 'stat' }, h('b', null, R.totalSec + 's'), h('span', null, 'total time')),
+          h('div', { class: 'stat' }, h('b', null, R.avgSec + 's'), h('span', null, 'avg / question')),
+          h('div', { class: 'stat' }, h('b', null, R.fastest + 's'), h('span', null, 'fastest answer'))),
+        syncLine3(),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', type: 'button', onclick: playAgain3 }, 'Play again'),
+          h('button', { class: 'btn ghost', type: 'button', onclick: switchStudent3 }, 'Different student'),
+          h('button', { class: 'btn ghost', type: 'button', onclick: goHome }, 'Choose a level'))),
       cskFooter()
     ];
   }
 
   function render() {
-    var views = { start: viewStart, quiz: viewQuiz, feedback: viewFeedback, done: viewDone };
+    var views = {
+      home: viewHome,
+      start: viewStart, quiz: viewQuiz, feedback: viewFeedback, done: viewDone,
+      start2: viewStart2, quiz2: viewQuiz2, feedback2: viewFeedback2, done2: viewDone2,
+      start3: viewStart3, quiz3: viewQuiz3, feedback3: viewFeedback3, done3: viewDone3
+    };
     var nodes = views[S.phase]().filter(Boolean);
     app.replaceChildren.apply(app, nodes);
     if (S.phase === 'start') { var idEl = document.getElementById('idinput'); if (idEl && !S.id) idEl.focus(); }
     if (S.phase === 'quiz' && curQ().mode === 'spell_type') { var sp = document.getElementById('spellinput'); if (sp) sp.focus(); }
     if (S.phase === 'feedback') { var nb = document.getElementById('nextbtn'); if (nb) nb.focus(); }
+    if (S.phase === 'start2') { var idEl2 = document.getElementById('idinput2'); if (idEl2 && !S2.id) idEl2.focus(); }
+    if (S.phase === 'feedback2') { var nb2 = document.getElementById('nextbtn2'); if (nb2) nb2.focus(); }
+    if (S.phase === 'start3') { var idEl3 = document.getElementById('idinput3'); if (idEl3 && !S3.id) idEl3.focus(); }
+    if (S.phase === 'feedback3') { var nb3 = document.getElementById('nextbtn3'); if (nb3) nb3.focus(); }
   }
 
   render();
